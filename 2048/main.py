@@ -1,8 +1,8 @@
 import sys
 import random
-from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, QMessageBox, QVBoxLayout, QPushButton, QHBoxLayout
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QEvent
 
 class Game2048(QWidget):
     def __init__(self):
@@ -11,12 +11,12 @@ class Game2048(QWidget):
         self.startGame()
 
     def initUI(self):
-        self.grid = QGridLayout()
-        self.grid.setSpacing(10)
-        self.setLayout(self.grid)
         self.setWindowTitle('2048')
-        self.setFixedSize(500, 500)
-        self.setStyleSheet("QWidget { background-color: #bbada0; }")
+        self.setFixedSize(500, 600)
+        self.setStyleSheet("QWidget { background-color: #f9f6f2; }")
+
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(10)
 
         self.labels = [[QLabel() for _ in range(4)] for _ in range(4)]
         for i in range(4):
@@ -25,12 +25,54 @@ class Game2048(QWidget):
                 label.setFont(QFont('Sans Serif', 35, QFont.Bold))
                 label.setAlignment(Qt.AlignCenter)
                 label.setMinimumSize(100, 100)
-                self.grid.addWidget(label, i, j)
+                label.setStyleSheet("QLabel { background-color: #cdc1b4; border-radius: 10px; }")
+                self.grid_layout.addWidget(label, i, j)
+
+        self.score_label = QLabel("Счёт: 0")
+        self.high_score_label = QLabel("Рекорд: 0")
+        self.score_label.setFont(QFont('Sans Serif', 20, QFont.Bold))
+        self.high_score_label.setFont(QFont('Sans Serif', 20, QFont.Bold))
+        self.score_label.setAlignment(Qt.AlignCenter)
+        self.high_score_label.setAlignment(Qt.AlignCenter)
+
+        self.undo_button = QPushButton("Отмена")
+        self.undo_button.setFont(QFont('Sans Serif', 20, QFont.Bold))
+        self.undo_button.clicked.connect(self.undo)
+        self.undo_button.setStyleSheet("""
+            QPushButton {
+                background-color: #8f7a66;
+                color: #f9f6f2;
+                border: none;
+                border-radius: 10px;
+                padding: 15px;
+            }
+            QPushButton:pressed {
+                background-color: #7a6a57;
+            }
+        """)
+
+        self.top_layout = QHBoxLayout()
+        self.top_layout.addWidget(self.score_label)
+        self.top_layout.addWidget(self.high_score_label)
+        self.top_layout.setSpacing(50)
+
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addLayout(self.top_layout)
+        self.main_layout.addLayout(self.grid_layout)
+        self.main_layout.addWidget(self.undo_button)
+        self.main_layout.setSpacing(20)
+
+        self.setLayout(self.main_layout)
+
+        self.undo_button.installEventFilter(self)
 
         self.show()
 
     def startGame(self):
         self.board = [[0] * 4 for _ in range(4)]
+        self.score = 0
+        self.high_score = 0
+        self.history = []
         self.addRandomTile()
         self.addRandomTile()
         self.updateUI()
@@ -48,6 +90,8 @@ class Game2048(QWidget):
                 label = self.labels[i][j]
                 label.setText(str(value) if value else "")
                 label.setStyleSheet("QLabel { background-color: %s; color: %s; border-radius: 10px; }" % (self.getTileColor(value)[0], self.getTileColor(value)[1]))
+        self.score_label.setText(f"Счёт: {self.score}")
+        self.high_score_label.setText(f"Рекорд: {self.high_score}")
 
     def getTileColor(self, value):
         color_dict = {
@@ -67,7 +111,10 @@ class Game2048(QWidget):
         return color_dict.get(value, ("#3c3a32", "#f9f6f2"))
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+        if event.key() == Qt.Key_Escape:
+            self.close()
+        elif event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            self.history.append((self.board.copy(), self.score))
             moved = False
             if event.key() == Qt.Key_Left:
                 moved = self.moveLeft()
@@ -85,6 +132,8 @@ class Game2048(QWidget):
                     self.showGameOver()
                 elif self.hasWon():
                     self.showGameWon()
+            else:
+                self.history.pop()
 
     def moveLeft(self):
         moved = False
@@ -95,6 +144,9 @@ class Game2048(QWidget):
                 if new_row[j] == new_row[j + 1] and new_row[j] != 0:
                     new_row[j] *= 2
                     new_row[j + 1] = 0
+                    self.score += new_row[j]
+                    if self.score > self.high_score:
+                        self.high_score = self.score
                     moved = True
             new_row = [x for x in new_row if x != 0]
             new_row += [0] * (4 - len(new_row))
@@ -140,7 +192,7 @@ class Game2048(QWidget):
 
     def showGameOver(self):
         msg = QMessageBox()
-        msg.setWindowTitle("Сообщение")
+        msg.setWindowTitle("Игра окончена")
         msg.setText("Игра окончена!")
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
@@ -153,6 +205,17 @@ class Game2048(QWidget):
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
         self.startGame()
+
+    def undo(self):
+        if self.history:
+            self.board, self.score = self.history.pop()
+            self.updateUI()
+
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Escape):
+            self.keyPressEvent(event)
+            return True
+        return super().eventFilter(source, event)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
