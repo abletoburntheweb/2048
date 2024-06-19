@@ -114,7 +114,7 @@ class Game2048(QWidget):
         if event.key() == Qt.Key_Escape:
             self.close()
         elif event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
-            self.history.append((self.board.copy(), self.score))
+            self.history.append((self.board.copy(), self.score, self.high_score))
             moved = False
             if event.key() == Qt.Key_Left:
                 moved = self.moveLeft()
@@ -201,14 +201,14 @@ class Game2048(QWidget):
     def showGameWon(self):
         msg = QMessageBox()
         msg.setWindowTitle("Победа!")
-        msg.setText("Вы достигли 2048!")
+        msg.setText("Поздравляем! Вы достигли 2048!")
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
         self.startGame()
 
     def undo(self):
         if self.history:
-            self.board, self.score = self.history.pop()
+            self.board, self.score, self.high_score = self.history.pop()
             self.updateUI()
 
     def eventFilter(self, source, event):
