@@ -1,3 +1,4 @@
+import json
 import sys
 import random
 from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, QMessageBox, QVBoxLayout, QPushButton, QHBoxLayout
@@ -224,13 +225,32 @@ class Game2048(QWidget):
 
         self.show()
 
+    def saveHighScore(self):
+        with open('high_score.json', 'w') as f:
+            json.dump({'high_score': self.high_score}, f)
+
+    def loadHighScore(self):
+        try:
+            with open('high_score.json', 'r') as f:
+                data = json.load(f)
+                self.high_score = data.get('high_score', 0)
+        except (FileNotFoundError, ValueError):
+            self.high_score = 0
+
     def startGame(self):
+        self.loadHighScore()
         self.board = [[0] * self.grid_size for _ in range(self.grid_size)]
         self.score = 0
-        self.high_score = 0
         self.history = []
         self.addRandomTile()
         self.addRandomTile()
+        self.updateUI()
+
+    def updateScore(self, points):
+        self.score += points
+        if self.score > self.high_score:
+            self.high_score = self.score
+            self.saveHighScore()
         self.updateUI()
 
     def addRandomTile(self):
@@ -240,13 +260,22 @@ class Game2048(QWidget):
             self.board[i][j] = 2 if random.random() < 0.9 else 4
 
     def updateUI(self):
+        # Update the grid labels with the values from the board
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 value = self.board[i][j]
                 label = self.labels[i][j]
                 label.setText(str(value) if value else "")
-                label.setStyleSheet("QLabel { background-color: %s; color: %s; border-radius: 10px; font-size: %dpx; }" % (self.getTileColor(value)[0], self.getTileColor(value)[1], self.getFontSize(value)))
+                label.setStyleSheet(
+                    "QLabel { background-color: %s; color: %s; border-radius: 10px; font-size: %dpx; }" % (
+                        self.getTileColor(value)[0], self.getTileColor(value)[1], self.getFontSize(value))
+                )
+
+        # Update the score label with the current score
         self.score_label.setText(f"Счёт: {self.score}")
+
+        # Load and display the high score from the high_score.json file
+        self.loadHighScore()
         self.high_score_label.setText(f"Рекорд: {self.high_score}")
 
     def getTileColor(self, value):
@@ -356,6 +385,7 @@ class Game2048(QWidget):
         return False
 
     def showGameOver(self):
+        self.saveHighScore()
         msg = QMessageBox()
         msg.setWindowTitle("Игра окончена")
         msg.setText("Игра окончена!")
@@ -364,6 +394,7 @@ class Game2048(QWidget):
         self.startGame()
 
     def showGameWon(self):
+        self.saveHighScore()
         msg = QMessageBox()
         msg.setWindowTitle("Победа!")
         msg.setText("Поздравляем! Вы достигли 2048!")
