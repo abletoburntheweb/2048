@@ -64,6 +64,11 @@ class MainMenu(QWidget):
         self.mode_selection.show()
         self.close()
 
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_Escape:
+            self.close()
+
 class ModeSelection(QWidget):
     def __init__(self):
         super().__init__()
@@ -114,13 +119,25 @@ class ModeSelection(QWidget):
         self.game.show()
         self.close()
 
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_Escape:
+            self.close()
+
 class Game2048(QWidget):
+    mode_config = {
+        '4x4': {'window_size': (600, 700), 'cell_size': 140, 'font_size': 35},
+        '5x5': {'window_size': (700, 800), 'cell_size': 112, 'font_size': 30},
+        '6x6': {'window_size': (800, 900), 'cell_size': 93, 'font_size': 25},
+        '8x8': {'window_size': (900, 1000), 'cell_size': 70, 'font_size': 20},
+    }
     def __init__(self, mode):
         super().__init__()
         self.mode = mode
         self.grid_size = int(mode[0])
         self.initUI()
         self.startGame()
+        self.config = self.mode_config[mode]
 
     def initUI(self):
         self.setWindowTitle(f'2048 - {self.mode}')
@@ -137,8 +154,14 @@ class Game2048(QWidget):
                 label = self.labels[i][j]
                 label.setFont(QFont('Sans Serif', 35 if self.grid_size == 4 else 30, QFont.Bold))
                 label.setAlignment(Qt.AlignCenter)
-                label.setMinimumSize(600 // self.grid_size - 20, 600 // self.grid_size - 20)
-                label.setStyleSheet("QLabel { background-color: #cdc1b4; border-radius: 10px; }")
+                label.setFixedSize(600 // self.grid_size - 20, 600 // self.grid_size - 20)
+                label.setStyleSheet("""
+                    QLabel {
+                        background-color: #cdc1b4;
+                        border-radius: 10px;
+                        color: #776e65;
+                    }
+                """)
                 self.grid_layout.addWidget(label, i, j)
 
         self.score_label = QLabel("Счёт: 0")
@@ -222,7 +245,7 @@ class Game2048(QWidget):
                 value = self.board[i][j]
                 label = self.labels[i][j]
                 label.setText(str(value) if value else "")
-                label.setStyleSheet("QLabel { background-color: %s; color: %s; border-radius: 10px; }" % (self.getTileColor(value)[0], self.getTileColor(value)[1]))
+                label.setStyleSheet("QLabel { background-color: %s; color: %s; border-radius: 10px; font-size: %dpx; }" % (self.getTileColor(value)[0], self.getTileColor(value)[1], self.getFontSize(value)))
         self.score_label.setText(f"Счёт: {self.score}")
         self.high_score_label.setText(f"Рекорд: {self.high_score}")
 
@@ -242,6 +265,11 @@ class Game2048(QWidget):
             2048: ("#edc22e", "#f9f6f2"),
         }
         return color_dict.get(value, ("#3c3a32", "#f9f6f2"))
+
+    def getFontSize(self, value):
+        if value >= 1024:
+            return 20
+        return 30
 
     def keyPressEvent(self, event):
         key = event.key()
