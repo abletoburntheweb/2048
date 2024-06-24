@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, QMessage
 from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt, QEvent
 
+
 class MainMenu(QWidget):
     def __init__(self):
         super().__init__()
@@ -136,13 +137,13 @@ class Game2048(QWidget):
         super().__init__()
         self.mode = mode
         self.grid_size = int(mode[0])
+        self.config = self.mode_config[mode]
         self.initUI()
         self.startGame()
-        self.config = self.mode_config[mode]
 
     def initUI(self):
         self.setWindowTitle(f'2048 - {self.mode}')
-        self.setFixedSize(600, 700)
+        self.setFixedSize(*self.config['window_size'])
         self.setWindowIcon(QIcon('2048.ico'))
         self.setStyleSheet("QWidget { background-color: #f9f6f2; }")
 
@@ -153,9 +154,9 @@ class Game2048(QWidget):
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 label = self.labels[i][j]
-                label.setFont(QFont('Sans Serif', 35 if self.grid_size == 4 else 30, QFont.Bold))
+                label.setFont(QFont('Sans Serif', self.config['font_size'], QFont.Bold))
                 label.setAlignment(Qt.AlignCenter)
-                label.setFixedSize(600 // self.grid_size - 20, 600 // self.grid_size - 20)
+                label.setFixedSize(self.config['cell_size'], self.config['cell_size'])
                 label.setStyleSheet("""
                     QLabel {
                         background-color: #cdc1b4;
@@ -221,8 +222,6 @@ class Game2048(QWidget):
 
         self.setLayout(self.main_layout)
 
-        self.undo_button.installEventFilter(self)
-
         self.show()
 
     def saveHighScore(self):
@@ -245,172 +244,156 @@ class Game2048(QWidget):
         self.addRandomTile()
         self.addRandomTile()
         self.updateUI()
+        self.setFocus()
 
     def updateScore(self, points):
         self.score += points
         if self.score > self.high_score:
             self.high_score = self.score
             self.saveHighScore()
-        self.updateUI()
-
-    def addRandomTile(self):
-        emptyTiles = [(i, j) for i in range(self.grid_size) for j in range(self.grid_size) if self.board[i][j] == 0]
-        if emptyTiles:
-            i, j = random.choice(emptyTiles)
-            self.board[i][j] = 2 if random.random() < 0.9 else 4
+        self.score_label.setText(f"Счёт: {self.score}")
+        self.high_score_label.setText(f"Рекорд: {self.high_score}")
 
     def updateUI(self):
-        # Update the grid labels with the values from the board
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 value = self.board[i][j]
                 label = self.labels[i][j]
-                label.setText(str(value) if value else "")
-                label.setStyleSheet(
-                    "QLabel { background-color: %s; color: %s; border-radius: 10px; font-size: %dpx; }" % (
-                        self.getTileColor(value)[0], self.getTileColor(value)[1], self.getFontSize(value))
-                )
-
-        # Update the score label with the current score
-        self.score_label.setText(f"Счёт: {self.score}")
-
-        # Load and display the high score from the high_score.json file
-        self.loadHighScore()
-        self.high_score_label.setText(f"Рекорд: {self.high_score}")
+                label.setText(str(value) if value != 0 else '')
+                label.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {self.getTileColor(value)};
+                        border-radius: 10px;
+                        color: {self.getTileTextColor(value)};
+                    }}
+                """)
+        self.updateScore(0)
 
     def getTileColor(self, value):
-        color_dict = {
-            0:    ("#cdc1b4", "#776e65"),
-            2:    ("#eee4da", "#776e65"),
-            4:    ("#ede0c8", "#776e65"),
-            8:    ("#f2b179", "#f9f6f2"),
-            16:   ("#f59563", "#f9f6f2"),
-            32:   ("#f67c5f", "#f9f6f2"),
-            64:   ("#f65e3b", "#f9f6f2"),
-            128:  ("#edcf72", "#f9f6f2"),
-            256:  ("#edcc61", "#f9f6f2"),
-            512:  ("#edc850", "#f9f6f2"),
-            1024: ("#edc53f", "#f9f6f2"),
-            2048: ("#edc22e", "#f9f6f2"),
+        colors = {
+            0: '#cdc1b4', 2: '#eee4da', 4: '#ede0c8', 8: '#f2b179',
+            16: '#f59563', 32: '#f67c5f', 64: '#f65e3b', 128: '#edcf72',
+            256: '#edcc61', 512: '#edc850', 1024: '#edc53f', 2048: '#edc22e'
         }
-        return color_dict.get(value, ("#3c3a32", "#f9f6f2"))
+        return colors.get(value, '#3c3a32')
 
-    def getFontSize(self, value):
-        if value >= 1024:
-            return 20
-        return 30
+    def getTileTextColor(self, value):
+        return '#776e65' if value < 8 else '#f9f6f2'
 
-    def keyPressEvent(self, event):
-        key = event.key()
-        if key == Qt.Key_Escape:
-            self.close()
-        elif key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
-            self.history.append((self.copyBoard(), self.score, self.high_score))
-            moved = False
-            if key == Qt.Key_Left:
-                moved = self.moveLeft()
-            elif key == Qt.Key_Right:
-                moved = self.moveRight()
-            elif key == Qt.Key_Up:
-                moved = self.moveUp()
-            elif key == Qt.Key_Down:
-                moved = self.moveDown()
+    def addRandomTile(self):
+        empty_tiles = [(i, j) for i in range(self.grid_size) for j in range(self.grid_size) if self.board[i][j] == 0]
+        if empty_tiles:
+            i, j = random.choice(empty_tiles)
+            self.board[i][j] = 4 if random.random() < 0.1 else 2
 
-            if moved:
-                self.addRandomTile()
-                self.updateUI()
-                if self.isGameOver():
-                    self.showGameOver()
-                elif self.hasWon():
-                    self.showGameWon()
-            else:
-                self.history.pop()
-
-    def copyBoard(self):
-        return [row[:] for row in self.board]
-
-    def moveLeft(self):
+    def move(self, direction):
+        self.history.append((self.score, [row[:] for row in self.board]))
         moved = False
-        for i in range(self.grid_size):
-            new_row = [x for x in self.board[i] if x != 0]
-            new_row += [0] * (self.grid_size - len(new_row))
-            for j in range(self.grid_size - 1):
-                if new_row[j] == new_row[j + 1] and new_row[j] != 0:
-                    new_row[j] *= 2
-                    new_row[j + 1] = 0
-                    self.score += new_row[j]
-                    if self.score > self.high_score:
-                        self.high_score = self.score
-                    moved = True
-            new_row = [x for x in new_row if x != 0]
-            new_row += [0] * (self.grid_size - len(new_row))
-            if self.board[i] != new_row:
-                self.board[i] = new_row
-                moved = True
-        return moved
-
-    def moveRight(self):
-        self.board = [row[::-1] for row in self.board]
-        moved = self.moveLeft()
-        self.board = [row[::-1] for row in self.board]
-        return moved
-
-    def moveUp(self):
-        self.board = [list(row) for row in zip(*self.board)]
-        moved = self.moveLeft()
-        self.board = [list(row) for row in zip(*self.board)]
-        return moved
-
-    def moveDown(self):
-        self.board = [list(row) for row in zip(*self.board)]
-        moved = self.moveRight()
-        self.board = [list(row) for row in zip(*self.board)]
-        return moved
-
-    def isGameOver(self):
-        for i in range(self.grid_size):
+        if direction == 'up':
             for j in range(self.grid_size):
-                if self.board[i][j] == 0:
-                    return False
-                if i < self.grid_size - 1 and self.board[i][j] == self.board[i + 1][j]:
-                    return False
-                if j < self.grid_size - 1 and self.board[i][j] == self.board[i][j + 1]:
-                    return False
-        return True
+                tiles = [self.board[i][j] for i in range(self.grid_size) if self.board[i][j] != 0]
+                for k in range(len(tiles) - 1):
+                    if tiles[k] == tiles[k + 1]:
+                        tiles[k] *= 2
+                        self.updateScore(tiles[k])
+                        tiles[k + 1] = 0
+                tiles = [tile for tile in tiles if tile != 0]
+                tiles.extend([0] * (self.grid_size - len(tiles)))
+                for i in range(self.grid_size):
+                    if self.board[i][j] != tiles[i]:
+                        self.board[i][j] = tiles[i]
+                        moved = True
+        elif direction == 'down':
+            for j in range(self.grid_size):
+                tiles = [self.board[i][j] for i in range(self.grid_size) if self.board[i][j] != 0]
+                for k in range(len(tiles) - 1, 0, -1):
+                    if tiles[k] == tiles[k - 1]:
+                        tiles[k] *= 2
+                        self.updateScore(tiles[k])
+                        tiles[k - 1] = 0
+                tiles = [tile for tile in tiles if tile != 0]
+                tiles = [0] * (self.grid_size - len(tiles)) + tiles
+                for i in range(self.grid_size):
+                    if self.board[i][j] != tiles[i]:
+                        self.board[i][j] = tiles[i]
+                        moved = True
+        elif direction == 'left':
+            for i in range(self.grid_size):
+                tiles = [self.board[i][j] for j in range(self.grid_size) if self.board[i][j] != 0]
+                for k in range(len(tiles) - 1):
+                    if tiles[k] == tiles[k + 1]:
+                        tiles[k] *= 2
+                        self.updateScore(tiles[k])
+                        tiles[k + 1] = 0
+                tiles = [tile for tile in tiles if tile != 0]
+                tiles.extend([0] * (self.grid_size - len(tiles)))
+                for j in range(self.grid_size):
+                    if self.board[i][j] != tiles[j]:
+                        self.board[i][j] = tiles[j]
+                        moved = True
+        elif direction == 'right':
+            for i in range(self.grid_size):
+                tiles = [self.board[i][j] for j in range(self.grid_size) if self.board[i][j] != 0]
+                for k in range(len(tiles) - 1, 0, -1):
+                    if tiles[k] == tiles[k - 1]:
+                        tiles[k] *= 2
+                        self.updateScore(tiles[k])
+                        tiles[k - 1] = 0
+                tiles = [tile for tile in tiles if tile != 0]
+                tiles = [0] * (self.grid_size - len(tiles)) + tiles
+                for j in range(self.grid_size):
+                    if self.board[i][j] != tiles[j]:
+                        self.board[i][j] = tiles[j]
+                        moved = True
 
-    def hasWon(self):
-        for row in self.board:
-            if 2048 in row:
-                return True
-        return False
-
-    def showGameOver(self):
-        self.saveHighScore()
-        msg = QMessageBox()
-        msg.setWindowTitle("Игра окончена")
-        msg.setText("Игра окончена!")
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-        self.startGame()
-
-    def showGameWon(self):
-        self.saveHighScore()
-        msg = QMessageBox()
-        msg.setWindowTitle("Победа!")
-        msg.setText("Поздравляем! Вы достигли 2048!")
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-        self.startGame()
+        if moved:
+            self.addRandomTile()
+            self.updateUI()
+            if not self.canMove():
+                self.showGameOverMessage()
 
     def undo(self):
         if self.history:
-            self.board, self.score, self.high_score = self.history.pop()
+            self.score, self.board = self.history.pop()
             self.updateUI()
 
+    def canMove(self):
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                if self.board[i][j] == 0:
+                    return True
+                if i < self.grid_size - 1 and self.board[i][j] == self.board[i + 1][j]:
+                    return True
+                if j < self.grid_size - 1 and self.board[i][j] == self.board[i][j + 1]:
+                    return True
+        return False
+
+    def showGameOverMessage(self):
+        msg_box = QMessageBox()
+        msg_box.setWindowTitle("Игра окончена")
+        msg_box.setText("Игра окончена. Ваш счёт: {}".format(self.score))
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.exec_()
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_Up:
+            self.move('up')
+        elif key == Qt.Key_Down:
+            self.move('down')
+        elif key == Qt.Key_Left:
+            self.move('left')
+        elif key == Qt.Key_Right:
+            self.move('right')
+        elif key == Qt.Key_Escape:
+            self.close()
+
     def eventFilter(self, source, event):
-        if event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Escape):
-            self.keyPressEvent(event)
-            return True
+        if event.type() == QEvent.KeyPress:
+            key = event.key()
+            if key == Qt.Key_Z and (event.modifiers() & Qt.ControlModifier):
+                self.undo()
+                return True
         return super().eventFilter(source, event)
 
 if __name__ == '__main__':
